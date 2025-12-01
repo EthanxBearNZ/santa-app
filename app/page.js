@@ -28,9 +28,8 @@ export default function SantaPage() {
   const userCamRef = useRef(null);
 
   // SANTA STATES
-  // 1. Idle Video (Santa blinking/breathing) - Loop this when he isn't talking
-  const idleVideoUrl = "https://cdn.pixabay.com/video/2022/12/12/142659-780447141_large.mp4"; // Placeholder Idle Santa
-  // 2. Talking Video - This changes dynamically
+  // 1. Idle Video (Santa blinking/breathing)
+  const idleVideoUrl = "https://cdn.pixabay.com/video/2022/12/12/142659-780447141_large.mp4"; 
   const [currentVideoSrc, setCurrentVideoSrc] = useState(idleVideoUrl);
   const [isSantaTalking, setIsSantaTalking] = useState(false);
 
@@ -41,7 +40,9 @@ export default function SantaPage() {
       setSession(session);
       if (session) {
         fetchCredits(session.user.id);
+        // Handle Return from Stripe
         if (window.location.search.includes('success=true')) {
+            console.log("💰 Payment return detected...");
             setTimeout(() => {
                 fetchCredits(session.user.id);
                 window.history.replaceState({}, document.title, "/");
@@ -59,7 +60,7 @@ export default function SantaPage() {
             })
             .catch(err => console.error("Camera denied:", err));
     }
-  }, [isInCall]); // Re-run when call starts
+  }, [isInCall]);
 
   // --- 2. ACTIONS ---
   const fetchCredits = async (userId) => {
@@ -76,13 +77,23 @@ export default function SantaPage() {
     setLoading(false);
   };
 
+  // --- FIX: ADDED HEADERS TO THIS FUNCTION ---
   const handleBuy = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/checkout', { method: 'POST', body: JSON.stringify({ userId: session.user.id }) });
+      const res = await fetch('/api/checkout', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, // <--- THIS WAS MISSING
+          body: JSON.stringify({ userId: session.user.id }) 
+      });
       const data = await res.json();
       if (data.url) window.location.href = data.url; 
-    } catch (e) { alert("Error connecting to store"); setLoading(false); }
+    } catch (e) { 
+        alert("Error connecting to store"); 
+        console.error(e);
+    } finally {
+        setLoading(false); 
+    }
   };
 
   // --- 3. THE CONVERSATION LOGIC ---
@@ -96,7 +107,7 @@ export default function SantaPage() {
     setInput('');
     setLoading(true);
 
-    // 2. Deduct Credit (Only on first message of call? Or per message? Up to you. Let's do per message for now)
+    // 2. Deduct Credit
     const newBalance = credits - 1;
     await supabase.from('profiles').update({ credits: newBalance }).eq('id', session.user.id);
     setCredits(newBalance);
@@ -105,6 +116,7 @@ export default function SantaPage() {
       // 3. Send History to Backend
       const res = await fetch('/api/video-chat', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ history: newHistory }),
       });
       const data = await res.json();
@@ -112,9 +124,7 @@ export default function SantaPage() {
       // 4. Santa Speaks!
       if (data.video) {
         setIsSantaTalking(true);
-        setCurrentVideoSrc(data.video); // Switch to talking video
-        
-        // Add Santa's reply to history
+        setCurrentVideoSrc(data.video); 
         setChatHistory([...newHistory, { role: 'assistant', content: data.text }]);
       }
     } catch (e) {
@@ -124,13 +134,12 @@ export default function SantaPage() {
     }
   };
 
-  // When video ends, go back to Idle Mode
   const handleVideoEnded = () => {
     if (isSantaTalking) {
         setIsSantaTalking(false);
-        setCurrentVideoSrc(idleVideoUrl); // Go back to blinking Santa
+        setCurrentVideoSrc(idleVideoUrl); 
         if(santaVideoRef.current) {
-            santaVideoRef.current.loop = true; // Idle video loops
+            santaVideoRef.current.loop = true; 
             santaVideoRef.current.play();
         }
     }
@@ -159,7 +168,7 @@ export default function SantaPage() {
       `}</style>
 
 
-      {/* --- SCENE 1: THE LOBBY (Login or Start Call) --- */}
+      {/* --- SCENE 1: THE LOBBY --- */}
       {!isInCall ? (
          <div style={{ 
              width: '100%', height: '100%', 
@@ -217,7 +226,6 @@ export default function SantaPage() {
                 ref={santaVideoRef}
                 src={currentVideoSrc} 
                 autoPlay 
-                // Loop only if it's the IDLE video
                 loop={!isSantaTalking} 
                 onEnded={handleVideoEnded}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -243,7 +251,6 @@ export default function SantaPage() {
                 width: '90%', maxWidth: '600px'
             }}>
                 
-                {/* Text Input acting as "Voice" */}
                 <input 
                     value={input} 
                     onChange={e => setInput(e.target.value)} 
@@ -256,20 +263,16 @@ export default function SantaPage() {
                     }} 
                 />
 
-                {/* Send Button */}
                 <button className="call-btn" onClick={handleSendMessage} disabled={loading} style={{ background: '#3b82f6' }}>
                     {loading ? '...' : '➤'}
                 </button>
 
-                {/* Hang Up Button */}
                 <button className="call-btn" onClick={() => setIsInCall(false)} style={{ background: '#ef4444' }}>
                     📞
                 </button>
             </div>
-
          </div>
       )}
-
     </div>
   );
 }
