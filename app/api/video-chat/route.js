@@ -1,26 +1,37 @@
 import { NextResponse } from 'next/server';
 
-// --- FREE SIMULATION MODE ---
 export async function POST(req) {
   try {
-    const { userMessage } = await req.json();
+    // We now accept 'history' (the whole chat) instead of just one message
+    const { history } = await req.json();
 
-    console.log("1. (Simulation) Received message:", userMessage);
+    console.log("1. (Simulation) Received conversation history length:", history.length);
     
-    // Simulate a delay (like Santa is thinking)
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Simulate thinking time
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    console.log("2. (Simulation) Returning fake response");
+    // IN REAL LIFE: You would send 'history' to OpenAI here.
+    // For now, we simulate a response based on the last message.
+    const lastMessage = history[history.length - 1].content.toLowerCase();
+    
+    let fakeResponseVideo = "https://www.w3schools.com/html/mov_bbb.mp4"; // Default
+    
+    // Simple logic to make it feel "real" during testing
+    if (lastMessage.includes("hello") || lastMessage.includes("hi")) {
+        // Santa saying hello
+        fakeResponseVideo = "https://www.w3schools.com/html/mov_bbb.mp4"; 
+    } else if (lastMessage.includes("gift") || lastMessage.includes("want")) {
+        // Santa talking about gifts
+        fakeResponseVideo = "https://www.w3schools.com/html/mov_bbb.mp4"; 
+    }
 
-    // Return a pre-made video URL (or a placeholder)
-    // This allows you to test the UI without paying OpenAI or D-ID
     return NextResponse.json({ 
-      text: "Ho ho ho! I am in Simulation Mode. Your website works perfectly!", 
-      // This is a sample video URL for testing
-      video: "https://www.w3schools.com/html/mov_bbb.mp4" 
+      video: fakeResponseVideo,
+      // We return the text too so we can save it to history
+      text: "Ho ho ho! I hear you loud and clear!" 
     });
 
   } catch (error) {
-    return NextResponse.json({ error: "Simulation failed" }, { status: 500 });
+    return NextResponse.json({ error: "Connection lost" }, { status: 500 });
   }
 }
