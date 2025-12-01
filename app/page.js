@@ -39,7 +39,7 @@ export default function SantaPage() {
         // Fetch credits immediately
         fetchCredits(session.user.id);
 
-        // THE FIX: If URL says "success=true", wait 3 seconds for Stripe to finish, then fetch again
+        // CHECK IF RETURNING FROM STRIPE
         if (window.location.search.includes('success=true')) {
             console.log("💰 Just returned from payment. Waiting for database update...");
             setTimeout(() => {
@@ -106,16 +106,44 @@ export default function SantaPage() {
     }
   };
 
+  // --- THE FIX: REAL DATABASE DEDUCTION ---
   const handleInteract = async () => {
     if (!input) return;
-    setLoading(true);
     
-    // Simulate Video Generation (Replace with real API call later)
-    setTimeout(() => {
-        setVideoSrc("https://www.w3schools.com/html/mov_bbb.mp4");
-        setCredits(prev => Math.max(0, prev - 1)); // Optimistic update
-        setLoading(false);
-    }, 2000);
+    // Check if we actually have credits
+    if (credits <= 0) {
+      alert("You need more magic credits!");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 1. Calculate new balance
+      const newBalance = credits - 1;
+
+      // 2. Save to Database
+      const { error } = await supabase
+        .from('profiles')
+        .update({ credits: newBalance })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+
+      // 3. Update Screen
+      setCredits(newBalance);
+      
+      // 4. Simulate Video (Replace this with real API call later when ready)
+      setTimeout(() => {
+          setVideoSrc("https://www.w3schools.com/html/mov_bbb.mp4");
+          setLoading(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error(error);
+      alert("Error updating credits. Please refresh.");
+      setLoading(false);
+    }
   };
 
 
