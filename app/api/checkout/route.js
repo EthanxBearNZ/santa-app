@@ -1,27 +1,41 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
-// Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function POST(req) {
   try {
     const { userId } = await req.json();
 
-    // 1. Determine the Return URL
-    // If Vercel didn't give us a Base URL, we try to guess it from the request headers
-    // (This fixes the "Missing URL" crash)
-    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // --- 1. FIND THE CORRECT URL ---
+    // Order of preference:
+    // A. The manual one you set in Vercel (NEXT_PUBLIC_BASE_URL)
+    // B. The automatic one Vercel provides (VERCEL_URL)
+    // C. The request host (headers)
     
+    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL;
+
     if (!baseUrl) {
-      const host = req.headers.get('host');
-      const protocol = host.includes('localhost') ? 'http' : 'https';
-      baseUrl = `${protocol}://${host}`;
+        const host = req.headers.get('host');
+        baseUrl = host;
     }
 
-    console.log("Stripe Checkout using URL:", baseUrl); // Debug log
+    // --- 2. CLEAN THE URL (The Fix for your Error) ---
+    // Stripe crashes if "https://" is missing. We force it here.
+    if (baseUrl && !baseUrl.startsWith('http')) {
+        // If we are on localhost, use http. Otherwise, force https.
+        const protocol = baseUrl.includes('localhost') ? 'http' : 'https';
+        baseUrl = `${protocol}://${baseUrl}`;
+    }
+    
+    // Remove trailing slash if it exists (e.g. .com/ -> .com)
+    if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.slice(0, -1);
+    }
 
-    // 2. Create the Session
+    console.log("✅ Stripe returning to:", baseUrl);
+
+    // --- 3. CREATE SESSION ---
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -29,7 +43,7 @@ export async function POST(req) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: '5 Santa Video Credits',
+              name: '5 Video Call Credits',
               description: 'Live Video Call with Santa',
               images: ['https://cdn-icons-png.flaticon.com/512/744/744546.png'],
             },
@@ -39,11 +53,7 @@ export async function POST(req) {
         },
       ],
       mode: 'payment',
-      metadata: {
-        userId: userId, 
-        creditsToAdd: '5'
-      },
-      // Use the safe URL we found
+      metadata: { userId: userId, creditsToAdd: '5' },
       success_url: `${baseUrl}/?success=true`,
       cancel_url: `${baseUrl}/?canceled=true`,
     });
