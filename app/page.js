@@ -203,3 +203,6 @@ export default function SantaPage() {
     </div>
   );
 }
+);
+}
+// Fixed build
